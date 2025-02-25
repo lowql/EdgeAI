@@ -1,4 +1,12 @@
+# 執行
+```shell
+python -m main
+```
 # 事前準備
+安裝依賴: 
+```shell
+pip install scikit-learn numpy pandas
+```
 下載WESAD資料集: https://uni-siegen.sciebo.de/s/HGdUkoNlW1Ub0Gx
 
 # 機器學習演算法
