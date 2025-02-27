@@ -2,22 +2,22 @@ import os,pickle
 import pandas as pd
 
 def pickle_path(subject_path,pickle_filename):
+    """ 取得資料集路徑 """
     BASE_PATH = os.path.join(os.path.dirname(__file__),"WESAD")
     SUBJECT_PATH = os.path.join(BASE_PATH,subject_path)
     PICKLE = os.path.join(SUBJECT_PATH,pickle_filename)
     return PICKLE
 def open_pickle(pickle_path):
+    """ 取得資料級內容 """
     with open(pickle_path,'rb') as f:
         data = pickle.load(f,encoding='bytes')
-        return(data)
+        return data
     
 class WESAB:
     def __init__(self):
         self._df = None
         self._label = None
-        s2_pickle = pickle_path("S2","S2.pkl")
-        print(s2_pickle)
-        data = open_pickle(s2_pickle)
+        data = open_pickle(pickle_path("S2","S2.pkl"))
         self.build_df(data)
     def get_df(self):
         return self._df
@@ -26,13 +26,23 @@ class WESAB:
     def get_group_df(self):
         return self.group()
     def build_df(self,data):
+        """ 建立DataFrame 準備訓練出所需要的資料欄位 """
         self._label = data[b'label']
         data = data[b'signal']
         data = data[b'chest']
+        """ 
+        (ACC_1,ACC_2,ACC_3): 測量物體加速度，檢測姿勢與識別活動行為
+        ECG: 心電圖，診斷心臟健康
+        EDA: 皮膚電活動，反應交感神經活動水平，用於情感識別與壓力檢測
+        EMG: 肌電圖
+        RESP: 呼吸訊號(頻率、速度)
+        TEMP: 體溫
+        BVP: 血容量脈動(心律、心血管脈動)
+        """
         data = {
             'label': self._label,
             **{f"ACC_{i}":x for i,x in enumerate(data[b'ACC'].T)},
-            "ECG": data[b'ECG'][:,0], #.flatten() [:,0]
+            "ECG": data[b'ECG'][:,0],
             "EMG": data[b'EMG'][:,0], 
             "EDA": data[b'EDA'][:,0], 
             "Resp": data[b'Resp'][:,0], 
@@ -41,8 +51,8 @@ class WESAB:
         self.data = data
         self._df = pd.DataFrame(data)
     def group(self):
-        df = self._df[(self._df['label']==1) | (self._df['label']==2)]
-        df = df.groupby('label').apply(lambda x:x.sample(n=40,random_state=42)).reset_index(drop=True)
+        df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
+        df = df.groupby('label').apply(lambda x:x.sample(n=40,random_state=42)).reset_index(drop=True) #Sample 40 from label==1 & label==2
         self._label = df['label']
         df = df.drop(columns=['label'])
         return df
