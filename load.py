@@ -10,7 +10,7 @@ def pickle_path(subject_path,pickle_filename):
 def open_pickle(pickle_path):
     """ 取得資料級內容 """
     with open(pickle_path,'rb') as f:
-        data = pickle.load(f,encoding='bytes',fix_imports=False)
+        data = pickle.load(f,encoding='bytes')
         return data
     
 class WESAD:
