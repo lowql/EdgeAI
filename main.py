@@ -17,7 +17,6 @@ Bagging 多棵決策樹的整合，通過投票決策，增強分類穩定性。
 - 集成學習 ， 多預測器訓練
 
 ## 線性判別分析 [(LDA)](https://scikit-learn.org/stable/modules/generated/sklearn.discriminant_analysis.LinearDiscriminantAnalysis.html)
-找到使類別間區分最大的投影方向。
 統計參數型的監督式學習
 LDA希望投影後的資料，組內分散量(within-class scatter)越小越好，組間分散量(between-class scatter)越大越好。
 

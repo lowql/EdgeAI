@@ -1,6 +1,6 @@
 from sklearn.model_selection import train_test_split
-from load import WESAB
-wesab = WESAB()
+from load import WESAD
+wesab = WESAD()
 class Learn:
     def __init__(self, clf):
         X = wesab.get_group_df()

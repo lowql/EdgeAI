@@ -3,7 +3,7 @@ import pandas as pd
 
 def pickle_path(subject_path,pickle_filename):
     """ 取得資料集路徑 """
-    BASE_PATH = os.path.join(os.path.dirname(__file__),"WESAD")
+    BASE_PATH = os.path.join("WESAD")
     SUBJECT_PATH = os.path.join(BASE_PATH,subject_path)
     PICKLE = os.path.join(SUBJECT_PATH,pickle_filename)
     return PICKLE
@@ -13,7 +13,7 @@ def open_pickle(pickle_path):
         data = pickle.load(f,encoding='bytes')
         return data
     
-class WESAB:
+class WESAD:
     def __init__(self):
         self._df = None
         self._label = None
@@ -59,7 +59,8 @@ class WESAB:
         
         
 if __name__ == "__main__":
-    wesab = WESAB()
-    group_data = wesab.group()
-    print(group_data)
+    wesab = WESAD()
+    df = wesab._df
+    # group_data = wesab.group()
+    # print(group_data)
     
