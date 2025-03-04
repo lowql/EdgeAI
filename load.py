@@ -4,7 +4,7 @@ import queue
 q = queue.Queue()
 q2 = queue.Queue()
 # pickle_lock = threading.Lock()
-
+# C:\Users\vemi\Desktop\WESAD
 def pickle_path(subject_path,pickle_filename):
     """ 取得資料集路徑 """
     BASE_PATH = os.path.join("WESAD")
@@ -14,10 +14,11 @@ def pickle_path(subject_path,pickle_filename):
 
 def open_pickle(pickle_path):
     """ 取得資料級內容 """
+    print("start pickle: ", pickle_path)
     with open(pickle_path,'rb') as f:
         q.put(pickle.load(f,encoding='bytes'))
         
-    print("pickle: ", pickle_path)
+    print("end pickle: ", pickle_path)
 
 class WESAD:
     def __init__(self):
@@ -66,7 +67,11 @@ class WESAD:
                 continue
             print(f"S{i}",end=' ')
             # args = tuple(pickle_path(f"S{i}",f"S{i}.pkl"),)
-            path = pickle_path(f"S{i}",f"S{i}.pkl")
+            if i%2:
+                path = pickle_path(f"S{i}",f"S{i}.pkl")
+            else:
+                path = os.path.join("C:", "Users", "vemi", "Desktop", "WESAD")
+                path = os.path.join(path, f"S{i}", f"S{i}.pkl")
             t = threading.Thread(target=open_pickle,args=(path,))
             t.start()
             threads.append(t)
