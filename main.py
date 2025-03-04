@@ -14,12 +14,10 @@ Bagging 多棵決策樹的整合，通過投票決策，增強分類穩定性。
 ## [Adaboost Decision Tree](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.AdaBoostClassifier.html)
 疊加多個簡單模型，增強分類效果。
 - 會通過一定的迭代行為，根據不同分類器的錯誤率，決定分類器的權重
-- 集成學習 ， 多預測器訓練
 
 ## 線性判別分析 [(LDA)](https://scikit-learn.org/stable/modules/generated/sklearn.discriminant_analysis.LinearDiscriminantAnalysis.html)
 統計參數型的監督式學習
 LDA希望投影後的資料，組內分散量(within-class scatter)越小越好，組間分散量(between-class scatter)越大越好。
-
 
 ## K近鄰 [(KNN)](https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsClassifier.html)
 根據最近的K個鄰居進行分類。
