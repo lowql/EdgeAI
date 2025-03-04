@@ -1,7 +1,9 @@
-import os,pickle,threading
+import os,pickle
 import pandas as pd
 import queue
-q = queue.Queue()
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+q = asyncio.Queue()
 q2 = queue.Queue()
 # pickle_lock = threading.Lock()
 # C:\Users\vemi\Desktop\WESAD
@@ -12,28 +14,37 @@ def pickle_path(subject_path,pickle_filename):
     PICKLE = os.path.join(SUBJECT_PATH,pickle_filename)
     return PICKLE
 
-def open_pickle(pickle_path):
-    """ 取得資料級內容 """
-    print("start pickle: ", pickle_path)
-    with open(pickle_path,'rb') as f:
-        q.put(pickle.load(f,encoding='bytes'))
-        
-    print("end pickle: ", pickle_path)
+def pickle_load_sync(pickle_path):
+    """同步函數：讀取 pickle 檔案"""
+    print(f"Start pickle: {pickle_path}")
+    with open(pickle_path, "rb") as f:
+        data = pickle.load(f, encoding="bytes")
+    print(f"End pickle: {pickle_path}")
+    return data
 
+async def open_pickle(pickle_path):
+    """非同步函數：使用多核心加速 pickle 讀取"""
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor() as executor:
+        data = await loop.run_in_executor(executor, pickle_load_sync, pickle_path)  
+        await q.put(data)  # 把結果放入非同步 Queue
+        
 class WESAD:
     def __init__(self):
-        self._df = None
+        self._df = pd.DataFrame()
         self._label = None
-        self.build_df()
+        # 觸發非同步執行
+        asyncio.create_task(self.run())  # 正確觸發非同步執行
+    async def run(self):
+        await self.build_df()
+
     def get_df(self):
         return self._df
     def get_label(self):
         return self._label
     def get_group_df(self):
         return self.group()
-    def pickle_to_df(self, data):
-        
-            
+    def pickle_to_df(self, data):    
         label = data[b'label']
         data = data[b'signal']
         data = data[b'chest']
@@ -57,37 +68,20 @@ class WESAD:
         }     
         # self.data = data
         q2.put(data)
-    def build_df(self):
+    async def build_df(self):
         """ 建立DataFrame 準備訓練出所需要的資料欄位 """
-        self._df = pd.DataFrame()
         print("load: ",end='')
-        threads = []
+        tasks = []
         for i in range(2,18):
             if i == 12:
                 continue
             print(f"S{i}",end=' ')
-            # args = tuple(pickle_path(f"S{i}",f"S{i}.pkl"),)
-            if i%2:
-                path = pickle_path(f"S{i}",f"S{i}.pkl")
-            else:
-                path = os.path.join("C:", "Users", "vemi", "Desktop", "WESAD")
-                path = os.path.join(path, f"S{i}", f"S{i}.pkl")
-            t = threading.Thread(target=open_pickle,args=(path,))
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-        threads.clear()
+            path = pickle_path(f"S{i}",f"S{i}.pkl")
+            tasks.append(open_pickle(path))
+        await asyncio.gather(*tasks)
+        
         while not q.empty():
-            data = q.get()
-            t = threading.Thread(target=self.pickle_to_df,args=(data,))
-            t.start()
-            threads.append(t)
-            # self._df = pd.concat([self._df, pd.DataFrame(data)], ignore_index=True)
-        for t in threads:
-            t.join()
-        while not q2.empty():
-            data = q2.get()
+            data = await q.get()
             self._df = pd.concat([self._df, pd.DataFrame(data)], ignore_index=True)
         print("Finish build DataFrame")
     def group(self):
