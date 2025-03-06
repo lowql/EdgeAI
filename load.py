@@ -36,11 +36,14 @@ class WESAD:
             data = await loop.run_in_executor(executor, pickle_load_sync, full_path)
             return self.pickle_to_df(data)
 
-    def get_df(self):
+    @property
+    def df(self):
         return self._df
-    def get_label(self):
+    @property
+    def label(self):
         return self._label
-    def get_group_df(self):
+    @property
+    def group_df(self):
         return self.group()
     def pickle_to_df(self, data):    
         label = data[b'label']
@@ -73,15 +76,9 @@ class WESAD:
         self._label = df['label']
         df = df.drop(columns=['label'])
         return df
-    def get_df(self):
-        return self._df
         
         
-async def get_wesad() -> WESAD:
-    wesad = WESAD()
-    await wesad.build_df()
-    return wesad
 # Use asyncio.run() in the correct context
 if __name__ == '__main__':
     wesad = WESAD()
-    wesad.get_df()
+    print(wesad.df)
