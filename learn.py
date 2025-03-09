@@ -3,8 +3,8 @@ from load import WESAD
 wesab = WESAD()
 class Learn:
     def __init__(self, clf):
-        X = wesab.get_group_df()
-        y = wesab.get_label()
+        X = wesab.group_df
+        y = wesab.label
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.3, random_state=42)
         self._clf = clf.fit(self.X_train, self.y_train)
     def check_test_XY(self):
