@@ -1,14 +1,24 @@
-from scipy.signal import butter, lfilter
+from scipy.signal import butter, find_peaks,filtfilt,detrend,windows,welch
+from scipy import interpolate
 import numpy as np
 import matplotlib.pyplot as plt
-from  pandas.core.frame import DataFrame
-def rolling_window(feature:DataFrame,window_size=10):
-    return [feature[i:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
 
 class SignalProcessor:
     def process(self,signal,**kwargs):
         raise NotImplementedError
 
+class StdProcessor(SignalProcessor):
+    def std(self,X,ddof=0):
+        X = np.asarray(X)
+        return np.std(X,ddof=ddof)
+    def process(self, signal, **kwargs):
+        return self.std(signal,**kwargs)
+class MeanProcessor(SignalProcessor):
+    def mean(self,X,axis=0):
+        X = np.asarray(X)
+        return np.mean(X,axis=axis)
+    def process(self, signal, **kwargs):
+        return self.mean(signal, **kwargs)
 class MinMaxProcessor(SignalProcessor):
     def min_max(self,x,axis = None):
         x = np.asarray(x)
@@ -31,9 +41,8 @@ class FFTProcessor(SignalProcessor):
         return {"freqs":freqs_half,"magnitude":magnitude_half}
     def process(self, signal, **kwargs):
         return self.time_to_freq(signal,**kwargs)
-
 class ButterBandpass(SignalProcessor):
-    def butter_bandpass(self,lowcut:float, highcut:float, fs:int, order=5):
+    def butter_bandpass_filter(self,data, lowcut, highcut, fs, order=5):
         """
         # from scipy.signal import butter, lfilter
         Create butterworth bandpass filter
@@ -49,17 +58,12 @@ class ButterBandpass(SignalProcessor):
         low = lowcut / nyq
         high = highcut / nyq
         # Validate input frequencies
+        # print("nyq {} lowcut {} highcut {}".format(nyq,lowcut,highcut))
         if lowcut >= nyq or highcut >= nyq:
             raise ValueError(f"Cutoff frequencies must be less than Nyquist frequency ({nyq} Hz)")
-        # print("nyq: {} low: {} high {}".format(nyq,low,high))
         
         b, a = butter(order, [low, high], btype='band')
-        return b, a
-    def butter_bandpass_filter(self,data, lowcut, highcut, fs, order=5):
-        """設置帶通濾波器參數，根據指定的低頻、高頻和階數進行濾波"""
-        b, a = self.butter_bandpass(lowcut, highcut, fs, order=order)
-        y = lfilter(b, a, data)
-        return y
+        return filtfilt(b, a, data)
     
     def process(self, signal, **kwargs):
         return self.butter_bandpass_filter(signal,**kwargs)
@@ -73,7 +77,104 @@ class ButterBandpass(SignalProcessor):
         filtered_signal = self.butter_bandpass_filter(signal, lowcut, highcut, fs, order)
         energy = np.sum(filtered_signal**2) 
         return energy
+class HRVFrequency(SignalProcessor):
+    def __init__(self):
+        self.bandpass_filter = ButterBandpass().butter_bandpass_filter
+        self.freq_bands = {
+            'ULF': (0.01, 0.04),
+            'LF': (0.04, 0.15),
+            'HF': (0.15, 0.4),
+            'UHF': (0.4, 1.0)
+        }
+        super().__init__()
+    def extract_hrv_frequency_features(self,ecg_signal, sampling_rate=250):
+        """
+        Extract frequency domain HRV features from ECG signal
+        
+        Parameters:
+        -----------
+        ecg_signal : np.array
+            The raw ECG signal
+        sampling_rate : int
+            Sampling rate of the ECG signal in Hz
+            
+        Returns:
+        --------
+        dict
+            Dictionary containing ULF, VLF, LF, HF, and UHF energy components
+        """
+        
+        # Step 1: ECG processing - R-peak detection
+        # ecg_filtered = self.bandpass_filter(ecg_signal, lowcut=5, highcut=15, fs=sampling_rate)
+        ecg_filtered = ecg_signal
+        rpeaks, _ = find_peaks(ecg_filtered, height=0.5*np.max(ecg_filtered), distance=0.5*sampling_rate)
+        
+        # Step 2: Calculate RR intervals in seconds
+        rr_intervals = np.diff(rpeaks) / sampling_rate
+        
+        # Optional: Remove outliers (ectopic beats)
+        # rr_intervals = remove_outliers(rr_intervals)
+        
+        # Step 3: Interpolate to create evenly sampled signal
+        # Interpolation frequency (typically 4 Hz for HRV analysis)
+        fs_interp = 4.0
+        
+        # Create time array (cumulative sum of RR intervals)
+        time_rr = np.cumsum(rr_intervals)
+        time_rr = np.insert(time_rr, 0, 0)  # Insert 0 at beginning
+        
+        # Create evenly spaced time array for interpolation
+        time_interp = np.arange(0, time_rr[-1], 1/fs_interp)
+        
+        # Interpolate RR intervals
+        # print(f"RR intervals count: {len(rr_intervals)}, Time RR count: {len(time_rr)}")
+        if len(rr_intervals) < 4:
+            raise ValueError("Too few RR intervals for interpolation. Need at least 4.")
+        if len(set(time_rr[:-1])) != len(time_rr[:-1]):
+            raise ValueError("Duplicate time points found in time_rr.")
 
+        tck = interpolate.splrep(time_rr[:-1], rr_intervals, s=0)
+        rr_interpolated = interpolate.splev(time_interp, tck, der=0)
+        
+        # Step 4: Detrend the interpolated RR intervals
+        # 移除數據的線性趨勢線
+        rr_detrended = detrend(rr_interpolated)
+        
+        # Step 5: Apply windowing (e.g., Hann window)
+        window = windows.hann(len(rr_detrended))
+        rr_windowed = rr_detrended * window
+        
+        # Step 6: Compute power spectral density using Welch's method
+        # Using Welch's method for better frequency resolution
+        freqs, psd = welch(rr_windowed, fs=fs_interp, nperseg=len(rr_windowed)//2, 
+                                scaling='density', detrend=False)
+        
+        # Step 7: Calculate energy in frequency bands
+        # ULF, LF, HF, UHF => [[0.01, 0.04], [0.04, 0.15], [0.15, 0.4], [0.4, 1.0]]
+        # Calculate energy in each band
+        energies = {}
+        for band_name, (low_freq, high_freq) in self.freq_bands.items():
+            # Find indices corresponding to the frequency band
+            indices = np.logical_and(freqs >= low_freq, freqs <= high_freq)
+            # Calculate energy (area under the PSD curve) in the band
+            band_energy = np.trapz(psd[indices], freqs[indices])
+            energies[band_name] = band_energy
+        
+        # Calculate total power
+        total_power = np.sum(list(energies.values()))
+        
+        # Calculate normalized powers and add to dictionary
+        # 修正：使用原始字典的副本進行迭代，避免在迭代時修改字典
+        for band in list(energies.keys()):
+            energies[f"{band}_normalized"] = energies[band] / total_power
+        
+        # Add LF/HF ratio
+        energies['LF_HF_ratio'] = energies['LF'] / energies['HF'] if energies['HF'] > 0 else np.nan
+        
+        return {"hrv_features":energies,"freq":freqs,"psd":psd}
+
+    def process(self, signal, **kwargs):
+        return self.extract_hrv_frequency_features(signal,**kwargs)
 class SignalDecorator:
     """裝飾器模式，允許對信號進行多重處理"""
     def __init__(self, signal):
@@ -89,11 +190,14 @@ class SignalDecorator:
         processed_signal = self.signal
         results = {}
         for processor, kwargs in self.processors:
+            # print(processed_signal)
+            # print(kwargs)
             result = processor.process(processed_signal, **kwargs)
             if isinstance(result, dict):
                 results.update(result)  # 儲存結果
             else:
                 processed_signal = result  # 更新處理後的信號
+        self.processors = []
         return processed_signal, results
     
 class SignalVisualizer:
