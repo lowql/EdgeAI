@@ -3,7 +3,7 @@ import pandas as pd
 import nest_asyncio
 import asyncio
 from functools import partial
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
 nest_asyncio.apply() # IPython 環境中已經有 Event loop 需要做特殊處裡
 from  pandas.core.series import Series
 from collections import Counter
@@ -107,7 +107,7 @@ class WESAD:
 
         feat_df = pd.DataFrame(features)
         return feat_df
-    def mutiP_feature_extraction(self,sample_n=4000,window_size=3000,cols=['ECG','EMG','label'],limit=0):
+    def mutiT_feature_extraction(self,sample_n=4000,window_size=3000,cols=['ECG','EMG','label'],limit=0):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
         signal_length = limit if limit > 0 else len(self.rolling_window(signal['ECG'], window_size=window_size))
@@ -119,7 +119,7 @@ class WESAD:
             cols = cols
         ) 
         features = []
-        with ProcessPoolExecutor() as exec:
+        with ThreadPoolExecutor() as exec:
             features = list(exec.map(process_window_func,range(signal_length)))
         feat_df = pd.DataFrame(features)
         return feat_df
