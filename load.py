@@ -4,6 +4,8 @@ import nest_asyncio
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 nest_asyncio.apply() # IPython 環境中已經有 Event loop 需要做特殊處裡
+from  pandas.core.series import Series
+
 
 def pickle_path(subject_path):
     """ Get dataset path """
@@ -21,11 +23,18 @@ def pickle_load_sync(pickle_path):
         
 class WESAD:
     def __init__(self):
-        self._df = pd.DataFrame()
-        self._label = None
+        self.df = pd.DataFrame()
+        self.label = None
         self.subjects = list(range(2, 18))
         self.subjects.remove(12)  # Remove subject 12
         asyncio.run(self.build_df())  # 正确
+        self.group_df = self.group().drop(columns=['label'])
+    @classmethod
+    def rolling_window(cls,feature:Series,window_size=10):
+        if len(feature.tolist()) < window_size:
+            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {len(feature.tolist())}")
+        return [feature[i:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
+
     async def load_subject_data(self, subject_number):
         """Load data for a specific subject"""
         subject_path = f"S{subject_number}"
@@ -35,16 +44,6 @@ class WESAD:
         with ProcessPoolExecutor() as executor:
             data = await loop.run_in_executor(executor, pickle_load_sync, full_path)
             return self.pickle_to_df(data)
-
-    @property
-    def df(self):
-        return self._df
-    @property
-    def label(self):
-        return self._label
-    @property
-    def group_df(self):
-        return self.group()
     def pickle_to_df(self, data):    
         label = data[b'label']
         data = data[b'signal']
@@ -67,14 +66,13 @@ class WESAD:
         subject_dataframes = await asyncio.gather(*tasks)
         
         # Concatenate all subject dataframes
-        self._df = pd.concat(subject_dataframes, ignore_index=True)
+        self.df = pd.concat(subject_dataframes, ignore_index=True)
         print("Finished building DataFrame")
-        return self._df
-    def group(self):
-        df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
-        df = df.groupby(['label']).apply(lambda x:x.sample(n=40,random_state=42)).reset_index(drop=True) #Sample 40 from label==1 & label==2
-        self._label = df['label']
-        df = df.drop(columns=['label'])
+        return self.df
+    def group(self,sample_n=5):
+        df = self.df[(self.df['label']==1) | (self.df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
+        df = df.groupby(['label']).apply(lambda x:x.sample(n=sample_n,random_state=42)).reset_index(drop=True) #Sample 40 from label==1 & label==2
+        self.label = df['label']
         return df
         
         
