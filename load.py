@@ -28,16 +28,20 @@ def pickle_load_sync(pickle_path:str) -> str:
         
 class WESAD:
 
-    def __init__(self, path_to_folder:str="WESAD"):
+    def __init__(self, path_to_folder:str="WESAD", **kwargs):
         self._df = pd.DataFrame()
         self._label = None
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
-        self._executor = ProcessPoolExecutor()
+        if 'max_workers' in kwargs:
+            max_workers = kwargs['max_workers']
+        else:
+            max_workers = None
+        self._executor = ProcessPoolExecutor(max_workers=max_workers)
         asyncio.run(self._build_df())  # 正确
         self.group_df = self.group()
 
     ## Data loading
-    async def load_subject_data(self, subject_str):
+    async def _load_subject_data(self, subject_str:str):
         """Load data for a specific subject"""
         full_path = os.path.join(pickle_path(subject_str), f"{subject_str}.pkl")
         loop = asyncio.get_running_loop()
@@ -64,7 +68,7 @@ class WESAD:
     async def _build_df(self) -> None:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
-        tasks = [self.load_subject_data(subject) for subject in self.subjects]
+        tasks = [self._load_subject_data(subject) for subject in self._subjects]
         subject_dataframes = await asyncio.gather(*tasks)
         
         # Concatenate all subject dataframes
