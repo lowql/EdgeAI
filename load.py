@@ -32,6 +32,7 @@ class WESAD:
         self._df = pd.DataFrame()
         self._label = None
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
+        self._subjects = self._subjects[:2] #dev
         if 'max_workers' in kwargs:
             max_workers = kwargs['max_workers']
         else:
@@ -83,8 +84,15 @@ class WESAD:
     @classmethod
     def rolling_window(cls,feature:Series,shift=700,window_size=10):
         if len(feature.tolist()) < window_size:
-            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {len(feature.tolist())}")
-        return [feature[i*shift:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
+            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
+        window = []
+        begin,end = 0,window_size
+        while end < feature.size:
+            window.append(feature[begin:end].tolist())
+            begin += shift
+            end = begin + window_size
+            
+        return window
 
     def feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0):
         signal = self.group(sample_n=sample_n).loc[:,cols]
@@ -123,7 +131,7 @@ class WESAD:
     def mutiT_feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0,work_n=1):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
-        max_len_of_signal = len(self.rolling_window(signal['subject'], window_size=window_size))
+        max_len_of_signal = len(rolling_windows['subject'])
         signal_length = limit if limit > 0 else max_len_of_signal
         print(f"signal length: {signal_length}/{max_len_of_signal}")
         
@@ -143,23 +151,30 @@ class WESAD:
         for key in cols:  
             time_signal = rolling_windows[key][i]  # 取出對應索引的窗口資料  
             decorator = feat.SignalDecorator(time_signal)  
-            if key == 'label':
-                col_feature['label'] = Counter(time_signal).most_common(1)[0][0]
-            elif key == 'subject':
-                col_feature['subject'] = Counter(time_signal).most_common(1)[0][0]
-            elif key == 'ECG':  
-                decorator.add_processor(feat.ButterBandpass(), lowcut=10, highcut=30, fs=70)  
-                decorator.add_processor(feat.HRVFrequency(), sampling_rate=700)  
-                processed_signal, results = decorator.apply()  
-                col_feature.update({f"ECG_{feat}": results['hrv_features'][feat] for feat in ['ULF', 'LF', 'HF', 'UHF']})   
-            else:  
-                decorator.add_processor(feat.StdProcessor())  
-                processed_signal, results = decorator.apply()  
-                col_feature[f"std_{key}"] = processed_signal  
-                
-                decorator.add_processor(feat.MeanProcessor())  
-                processed_signal, results = decorator.apply()  
-                col_feature[f"mean_{key}"] = processed_signal 
+            try:
+                if key == 'label':
+                    try:
+                        col_feature['label'] = Counter(time_signal).most_common(1)[0][0]
+                    except Exception as e:
+                        print(time_signal)
+                elif key == 'subject':
+                    col_feature['subject'] = Counter(time_signal).most_common(1)[0][0]
+                elif key == 'ECG':  
+                    decorator.add_processor(feat.ButterBandpass(), lowcut=10, highcut=30, fs=70)  
+                    decorator.add_processor(feat.HRVFrequency(), sampling_rate=700)  
+                    processed_signal, results = decorator.apply()  
+                    col_feature.update({f"ECG_{feat}": results['hrv_features'][feat] for feat in ['ULF', 'LF', 'HF', 'UHF']})   
+                    print('.',end='')
+                else:  
+                    decorator.add_processor(feat.StdProcessor())  
+                    processed_signal, results = decorator.apply()  
+                    col_feature[f"std_{key}"] = processed_signal  
+                    
+                    decorator.add_processor(feat.MeanProcessor())  
+                    processed_signal, results = decorator.apply()  
+                    col_feature[f"mean_{key}"] = processed_signal      
+            except ValueError as e:
+                print(f"v{i}",end='')
         return col_feature
 
 class Evaluate:
