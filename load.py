@@ -131,6 +131,13 @@ class WESAD:
     def mutiT_feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0,work_n=1):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
+        
+        df = pd.DataFrame(rolling_windows)
+        print(f"shape of df before filter {df.shape[0]}")
+        df = df[df.apply(lambda row: len(set(row['label'])) == 1 and len(set(row['subject'])) == 1, axis=1)]
+        print(f"shape of df after filter {df.shape[0]}")
+        rolling_windows = df.to_dict(orient='list')
+        
         max_len_of_signal = len(rolling_windows['subject'])
         signal_length = limit if limit > 0 else max_len_of_signal
         print(f"signal length: {signal_length}/{max_len_of_signal}")
