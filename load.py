@@ -27,18 +27,17 @@ def pickle_load_sync(pickle_path:str) -> str:
     return data
         
 class WESAD:
-
     def __init__(self, path_to_folder:str="WESAD", **kwargs):
         self._df = pd.DataFrame()
         self._label = None
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
-        self._subjects = self._subjects[:2] #dev
+        # self._subjects = self._subjects[:2] # for dev
         if 'max_workers' in kwargs:
             max_workers = kwargs['max_workers']
         else:
             max_workers = None
         self._executor = ProcessPoolExecutor(max_workers=max_workers)
-        asyncio.run(self._build_df())  # 正确
+        asyncio.run(self._build_df())  
         self.group_df = self.group()
 
     ## Data loading

@@ -6,13 +6,12 @@ from sklearn.metrics import accuracy_score
 from load import WESAD
 import pandas as pd
 from abc import abstractmethod
-wesad = WESAD()
 class Learn:
-    def __init__(self, clf):
-        self.X = wesad.group_df
+    def __init__(self, clf,X:pd.DataFrame,y:pd.Series):
+        self.X = X
         self.subjects = self.X['subject']
-        self.y = wesad.group_df['label']
-        self.X = wesad.group_df.drop(['label','subject'],axis=1)
+        self.y = X['label']
+        self.X = X.drop(['label','subject'],axis=1)
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.3, random_state=42)
         self._clf = clf
         self.model = clf.fit(self.X_train,self.y_train)
