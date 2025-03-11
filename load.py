@@ -11,13 +11,14 @@ from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 from collections import Counter
 import feature as feat
-def pickle_path(subject_path):
+
+def pickle_path(subject_path:str) -> str:
     """ Get dataset path """
     BASE_PATH = os.path.join("WESAD")
     SUBJECT_PATH = os.path.join(BASE_PATH, subject_path)
     return SUBJECT_PATH
 
-def pickle_load_sync(pickle_path):
+def pickle_load_sync(pickle_path:str) -> str:
     """同步函數：讀取 pickle 檔案"""
     print(f"Start pickle: {pickle_path}")
     with open(pickle_path, "rb") as f:
@@ -26,29 +27,24 @@ def pickle_load_sync(pickle_path):
     return data
         
 class WESAD:
-    def __init__(self):
-        self.df = pd.DataFrame()
-        self.label = None
-        # self.subjects = list(range(2, 18))
-        self.subjects = list(range(12, 15))
-        self.subjects.remove(12)  # Remove subject 12
-        asyncio.run(self.build_df())  # 正确
+
+    def __init__(self, path_to_folder:str="WESAD"):
+        self._df = pd.DataFrame()
+        self._label = None
+        self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
+        self._executor = ProcessPoolExecutor()
+        asyncio.run(self._build_df())  # 正确
         self.group_df = self.group()
-    @classmethod
-    def rolling_window(cls,feature:Series,window_size=10):
-        if len(feature.tolist()) < window_size:
-            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {len(feature.tolist())}")
-        return [feature[i:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
-    async def load_subject_data(self, subject_number):
+
+    ## Data loading
+    async def load_subject_data(self, subject_str):
         """Load data for a specific subject"""
-        subject_path = f"S{subject_number}"
-        full_path = os.path.join(pickle_path(subject_path), f"{subject_path}.pkl")
-        
+        full_path = os.path.join(pickle_path(subject_str), f"{subject_str}.pkl")
         loop = asyncio.get_running_loop()
-        with ProcessPoolExecutor() as executor:
-            data = await loop.run_in_executor(executor, pickle_load_sync, full_path)
-            return self.pickle_to_df(data)
-    def pickle_to_df(self, data:dict):    
+        data = await loop.run_in_executor(self._executor, pickle_load_sync, full_path)
+        return self._pickle_to_df(data)
+    
+    def _pickle_to_df(self, data:dict) -> pd.DataFrame:
         label = data[b'label']
         subject = data[b'subject'].decode('utf-8')
         data = data[b'signal']
@@ -64,23 +60,34 @@ class WESAD:
             "Temp": data[b'Temp'][:,0],  
         }     
         return pd.DataFrame(data)
-    async def build_df(self):
+    
+    async def _build_df(self) -> None:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
         tasks = [self.load_subject_data(subject) for subject in self.subjects]
         subject_dataframes = await asyncio.gather(*tasks)
         
         # Concatenate all subject dataframes
-        self.df = pd.concat(subject_dataframes, ignore_index=True)
+        self._df = pd.concat(subject_dataframes, ignore_index=True)
         print("Finished building DataFrame")
-        return self.df
-    def group(self,sample_n=5) -> DataFrame:
-        df = self.df[(self.df['label']==1) | (self.df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
+        return self._df # >>DEBUG<< delete later
+    
+    def group(self, sample_n:int=5) -> DataFrame:
+        df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
         print("before sample:",df.size)
         df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
         print("after sample:",df.size)
-        self.label = df['label']
+        self._label = df['label']
         return df
+    ## endof data loading
+
+
+    @classmethod
+    def rolling_window(cls,feature:Series,window_size=10):
+        if len(feature.tolist()) < window_size:
+            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {len(feature.tolist())}")
+        return [feature[i:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
+    
     def feature_extraction(self,sample_n=4000,window_size=3000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         features = []
@@ -227,4 +234,4 @@ class Evaluate:
 # Use asyncio.run() in the correct context
 if __name__ == '__main__':
     wesad = WESAD()
-    print(wesad.df)
+    print(wesad._df)
