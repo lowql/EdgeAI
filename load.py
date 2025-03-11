@@ -27,7 +27,6 @@ def pickle_load_sync(pickle_path:str) -> str:
     return data
         
 class WESAD:
-
     def __init__(self, path_to_folder:str="WESAD"):
         self._df = pd.DataFrame()
         self._label = None
@@ -35,11 +34,14 @@ class WESAD:
         self._executor = ProcessPoolExecutor()
         asyncio.run(self._build_df())  # 正确
         self.group_df = self.group()
-
-    ## Data loading
+    @classmethod
+    def rolling_window(cls,feature:Series,shift=700,window_size=10):
+        if len(feature.tolist()) < window_size:
+            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {len(feature.tolist())}")
+        return [feature[i*shift:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
     async def load_subject_data(self, subject_str):
         """Load data for a specific subject"""
-        full_path = os.path.join(pickle_path(subject_str), f"{subject_str}.pkl")
+        full_path = os.path.join(pickle_path(str(subject_str)), f"{subject_str}.pkl")
         loop = asyncio.get_running_loop()
         data = await loop.run_in_executor(self._executor, pickle_load_sync, full_path)
         return self._pickle_to_df(data)
@@ -64,31 +66,20 @@ class WESAD:
     async def _build_df(self) -> None:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
-        tasks = [self.load_subject_data(subject) for subject in self.subjects]
+        tasks = [self.load_subject_data(subject) for subject in self._subjects]
         subject_dataframes = await asyncio.gather(*tasks)
         
         # Concatenate all subject dataframes
         self._df = pd.concat(subject_dataframes, ignore_index=True)
         print("Finished building DataFrame")
-        return self._df # >>DEBUG<< delete later
     
     def group(self, sample_n:int=5) -> DataFrame:
         df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
         print("before sample:",df.size)
         df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
-        print("after sample:",df.size)
-        self._label = df['label']
+        self.label = df['label']
         return df
-    ## endof data loading
-
-
-    @classmethod
-    def rolling_window(cls,feature:Series,window_size=10):
-        if len(feature.tolist()) < window_size:
-            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {len(feature.tolist())}")
-        return [feature[i:i+window_size].tolist() for i in range(len(feature)-window_size+1)]
-    
-    def feature_extraction(self,sample_n=4000,window_size=3000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0):
+    def feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         features = []
         signal_length = limit if limit > 0 else len(self.rolling_window(signal['subject'], window_size=window_size))
@@ -122,7 +113,7 @@ class WESAD:
 
         feat_df = pd.DataFrame(features)
         return feat_df
-    def mutiT_feature_extraction(self,sample_n=2000,window_size=3000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0,work_n=1):
+    def mutiT_feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0,work_n=1):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
         max_len_of_signal = len(self.rolling_window(signal['subject'], window_size=window_size))
