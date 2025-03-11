@@ -7,7 +7,8 @@ import time
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
 nest_asyncio.apply() # IPython 環境中已經有 Event loop 需要做特殊處裡
-from  pandas.core.series import Series
+from pandas.core.series import Series
+from pandas.core.frame import DataFrame
 from collections import Counter
 import feature as feat
 def pickle_path(subject_path):
@@ -28,10 +29,11 @@ class WESAD:
     def __init__(self):
         self.df = pd.DataFrame()
         self.label = None
-        self.subjects = list(range(2, 18))
+        # self.subjects = list(range(2, 18))
+        self.subjects = list(range(12, 15))
         self.subjects.remove(12)  # Remove subject 12
         asyncio.run(self.build_df())  # 正确
-        self.group_df = self.group().drop(columns=['label'])
+        self.group_df = self.group()
     @classmethod
     def rolling_window(cls,feature:Series,window_size=10):
         if len(feature.tolist()) < window_size:
@@ -46,18 +48,20 @@ class WESAD:
         with ProcessPoolExecutor() as executor:
             data = await loop.run_in_executor(executor, pickle_load_sync, full_path)
             return self.pickle_to_df(data)
-    def pickle_to_df(self, data):    
+    def pickle_to_df(self, data:dict):    
         label = data[b'label']
+        subject = data[b'subject'].decode('utf-8')
         data = data[b'signal']
         data = data[b'chest']
         data = {
             'label': label,
+            'subject':subject,
             **{f"ACC_{i}":x for i,x in enumerate(data[b'ACC'].T)},
             "ECG": data[b'ECG'][:,0],
             "EMG": data[b'EMG'][:,0], 
             "EDA": data[b'EDA'][:,0], 
             "Resp": data[b'Resp'][:,0], 
-            "Temp": data[b'Temp'][:,0], 
+            "Temp": data[b'Temp'][:,0],  
         }     
         return pd.DataFrame(data)
     async def build_df(self):
@@ -70,21 +74,23 @@ class WESAD:
         self.df = pd.concat(subject_dataframes, ignore_index=True)
         print("Finished building DataFrame")
         return self.df
-    def group(self,sample_n=5):
+    def group(self,sample_n=5) -> DataFrame:
         df = self.df[(self.df['label']==1) | (self.df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
-        df = df.groupby(['label']).apply(lambda x:x.sample(n=sample_n,random_state=42)).reset_index(drop=True) #Sample 40 from label==1 & label==2
+        print("before sample:",df.size)
+        df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
+        print("after sample:",df.size)
         self.label = df['label']
         return df
-    def feature_extraction(self,sample_n=4000,window_size=3000,cols=['ECG','EMG','label'],limit=0):
+    def feature_extraction(self,sample_n=4000,window_size=3000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         features = []
-        signal_length = limit if limit > 0 else len(self.rolling_window(signal['ECG'], window_size=window_size))
+        signal_length = limit if limit > 0 else len(self.rolling_window(signal['subject'], window_size=window_size))
         print(f"signal length: {signal_length}")
         for i in range(signal_length):  
             col_feature = {}  # 先存這一組 window 的特徵  
 
             for key in cols:  
-                rolling_data = self.rolling_window(signal[key], window_size=3000)  
+                rolling_data = self.rolling_window(signal[key], window_size=window_size)  
                 time_signal = rolling_data[i]  # 取出對應索引的窗口資料  
                 decorator = feat.SignalDecorator(time_signal)  
 
@@ -109,10 +115,10 @@ class WESAD:
 
         feat_df = pd.DataFrame(features)
         return feat_df
-    def mutiT_feature_extraction(self,sample_n=4000,window_size=3000,cols=['ECG','EMG','label'],limit=0,work_n=1):
+    def mutiT_feature_extraction(self,sample_n=2000,window_size=3000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0,work_n=1):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
-        max_len_of_signal = len(self.rolling_window(signal['ECG'], window_size=window_size))
+        max_len_of_signal = len(self.rolling_window(signal['subject'], window_size=window_size))
         signal_length = limit if limit > 0 else max_len_of_signal
         print(f"signal length: {signal_length}/{max_len_of_signal}")
         
@@ -134,6 +140,8 @@ class WESAD:
             decorator = feat.SignalDecorator(time_signal)  
             if key == 'label':
                 col_feature['label'] = Counter(time_signal).most_common(1)[0][0]
+            elif key == 'subject':
+                col_feature['subject'] = Counter(time_signal).most_common(1)[0][0]
             elif key == 'ECG':  
                 decorator.add_processor(feat.ButterBandpass(), lowcut=10, highcut=30, fs=70)  
                 decorator.add_processor(feat.HRVFrequency(), sampling_rate=700)  

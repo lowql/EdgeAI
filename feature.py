@@ -165,8 +165,13 @@ class HRVFrequency(SignalProcessor):
         
         # Calculate normalized powers and add to dictionary
         # 修正：使用原始字典的副本進行迭代，避免在迭代時修改字典
+        
+    
         for band in list(energies.keys()):
-            energies[f"{band}_normalized"] = energies[band] / total_power
+            if total_power == 0 or np.isnan(total_power):
+                energies[f"{band}_normalized"] = np.nan  # 或者设为 0，取决于业务逻辑
+            else:
+                energies[f"{band}_normalized"] = energies[band] / total_power
         
         # Add LF/HF ratio
         energies['LF_HF_ratio'] = energies['LF'] / energies['HF'] if energies['HF'] > 0 else np.nan
