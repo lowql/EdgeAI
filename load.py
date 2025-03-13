@@ -31,7 +31,7 @@ class WESAD:
         self._df = pd.DataFrame()
         self._label = None
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
-        # self._subjects = self._subjects[:2] # for dev
+        # self._subjects = self._subjects[:2] # for developing, >>REMOVE<< later
         if 'max_workers' in kwargs:
             max_workers = kwargs['max_workers']
         else:
@@ -80,18 +80,12 @@ class WESAD:
         df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
         self.label = df['label']
         return df
+    
     @classmethod
     def rolling_window(cls,feature:Series,shift=700,window_size=10):
-        if len(feature.tolist()) < window_size:
+        if len(feature) < window_size:
             raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
-        window = []
-        begin,end = 0,window_size
-        while end < feature.size:
-            window.append(feature[begin:end].tolist())
-            begin += shift
-            end = begin + window_size
-            
-        return window
+        return feature.rolling(window=window_size, min_periods=window_size, step=shift).apply(lambda x: x, raw=False)
 
     def feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0):
         signal = self.group(sample_n=sample_n).loc[:,cols]
@@ -127,6 +121,7 @@ class WESAD:
 
         feat_df = pd.DataFrame(features)
         return feat_df
+    
     def mutiT_feature_extraction(self,sample_n=14000,window_size=7000,cols=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],limit=0,work_n=1):
         signal = self.group(sample_n=sample_n).loc[:,cols]
         rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
@@ -152,6 +147,7 @@ class WESAD:
             features = list(exec.map(process_window_func,range(signal_length)))
         feat_df = pd.DataFrame(features)
         return feat_df
+    
     def _process_window(self,i,rolling_windows,cols):
         col_feature = {}  # 先存這一組 window 的特徵  
         for key in cols:  
