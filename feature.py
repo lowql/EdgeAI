@@ -180,6 +180,8 @@ class HRVFrequency(SignalProcessor):
 
     def process(self, signal, **kwargs):
         return self.extract_hrv_frequency_features(signal,**kwargs)
+    
+
 class SignalDecorator:
     """裝飾器模式，允許對信號進行多重處理"""
     def __init__(self, signal):
@@ -204,7 +206,23 @@ class SignalDecorator:
                 processed_signal = result  # 更新處理後的信號
         self.processors = []
         return processed_signal, results
+
+from typing import List
+class FunctionPipeline:
+    def __init__(self, process:List[function], kwargs:List[dict]) -> None:
+        if len(process) != len(kwargs):
+            raise AssertionError
+        self.processors = [(func, args) for func, args in zip(process, kwargs)]
     
+    def add_processor(self, processor:SignalProcessor, **kwargs:dict) -> None:
+        self.processors.append((processor, kwargs))
+
+    def apply(self, data: List) -> List[float]:
+        result = data
+        for func, args in self.processors:
+            result = func(data, args)
+        return result
+
 class SignalVisualizer:
     """負責繪圖"""
     def __init__(self, original_signal, time_step=0.01):
@@ -239,6 +257,3 @@ class SignalVisualizer:
 
         plt.tight_layout()
         plt.show()
-            
-
-        
