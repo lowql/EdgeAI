@@ -83,8 +83,12 @@ class WESAD:
         self.label = df['label']
         return df
     
-    @classmethod
-    def rolling_window(cls,feature:pd.Series, shift:int=700, window_size:int=10) -> pd.DataFrame:
+    ## ENDOF Data Loading
+    ###########################################################################################################################################
+
+    ## Feature extraction
+
+    def rolling_window(self, feature:pd.Series, shift:int=700, window_size:int=10) -> pd.DataFrame:
         """ 
         Note: this rolling window creates 2-Dimension data, which may be too big,
               In the future this should be changed to apply function instead of creating list.
@@ -100,7 +104,7 @@ class WESAD:
         result = pd.concat(rows, ignore_index=True)
         return result
 
-    def rolling_window_apply(cls,feature:pd.Series, function_pipeline:feat.FunctionPipeline, shift:int=700, window_size:int=10, ) -> Iterator[pd.Series]:
+    def rolling_window_apply(self, feature:pd.Series, function_pipeline:feat.FunctionPipeline, shift:int=700, window_size:int=10, ) -> Iterator[pd.Series]:
         """ 
         Same as rolling window but ,
         intuitively the space taken will be O(n), >haven't confirmed<
@@ -242,7 +246,9 @@ class WESAD:
             except ValueError as e:
                 print(f"v{i}",end='')
         return col_feature
-
+    
+    ## ENDOF Feature Extraction
+    
 class Evaluate:
     plt.figure(figsize=(10, 6))
     @classmethod
