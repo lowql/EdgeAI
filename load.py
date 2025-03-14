@@ -71,7 +71,7 @@ class WESAD:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
         save_path = "_InitDataFrame.pkl"
-        if not os.path.exists:
+        if not os.path.exists(save_path):
             tasks = [self._load_subject_data(subject) for subject in self._subjects]
             subject_dataframes = await asyncio.gather(*tasks)
             # Concatenate all subject dataframes
