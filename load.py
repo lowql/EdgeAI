@@ -68,8 +68,9 @@ class WESAD:
     async def _build_df(self) -> None:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
+        save_path = "_InitDataFrame.pkl"
         try:
-            self._df = pd.read_pickle("_InitDataFrame.pkl",compression="zstd")
+            self._df = pd.read_pickle(save_path, compression="zstd")
             # UnpicklingError: invalid load key, '\xb5'.
             print("Using ready-made DataFrame")
         except FileNotFoundError as e:
@@ -80,12 +81,11 @@ class WESAD:
             self._df = pd.concat(subject_dataframes, ignore_index=True)
             # care about compression rate and read speed (storage optimization + fast read):
             print("Finished building DataFrame")
-            self._df.to_pickle("_InitDataFrame.pkl", protocol=5, compression="zstd")
+            self._df.to_pickle(save_path, protocol=5, compression="zstd")
     
     def group(self, sample_n:int) -> pd.DataFrame:
         df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
         df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
-        self.label = df['label']
         return df
     
     ## ENDOF Data Loading
@@ -132,9 +132,10 @@ class WESAD:
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
         # TODOS:
-        # 1. change lambdas to partials
+        # 1. (Optional) change lambdas to partials
         # 2. add logic to separate different label/subject, preferably outside of this function
         # 3. (Optional) add multithreading, preferably outside of this function
+        # 4. (Optional) make better cols initialization
         signal = self.group(sample_n=sample_n).loc[:,cols]
         features = pd.DataFrame()
         for key in cols:
