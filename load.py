@@ -33,9 +33,9 @@ class WESAD:
         self._df = pd.DataFrame()
         self._label = None
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
-        subject_count = kwargs.get('subject_count', len(self._subjects)) # for developing, >>REMOVE<< later
-        self._subjects = self._subjects[:subject_count] # for developing, >>REMOVE<< later
-        max_workers = kwargs.get('max_workers', None)
+        subject_count = kwargs.get('subject_count', len(self._subjects)) # NOTE for developing, >>REMOVE<< later
+        self._subjects = self._subjects[:subject_count] # NOTE for developing, >>REMOVE<< later
+        max_workers = kwargs.get('max_workers', None) # for people with weak computer like me :(
         self._executor = ProcessPoolExecutor(max_workers=max_workers)
         asyncio.run(self._build_df())  
         self.group_df = self.group(100)
@@ -69,19 +69,19 @@ class WESAD:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
         save_path = "_InitDataFrame.pkl"
-        try:
-            self._df = pd.read_pickle(save_path, compression="zstd")
-            # UnpicklingError: invalid load key, '\xb5'.
-            print("Using ready-made DataFrame")
-        except FileNotFoundError as e:
-            print(e)
+        if not os.path.exists:
             tasks = [self._load_subject_data(subject) for subject in self._subjects]
             subject_dataframes = await asyncio.gather(*tasks)
             # Concatenate all subject dataframes
             self._df = pd.concat(subject_dataframes, ignore_index=True)
-            # care about compression rate and read speed (storage optimization + fast read):
+            # look-out for compression rate and read speed (storage optimization + fast read):
             print("Finished building DataFrame")
             self._df.to_pickle(save_path, protocol=5, compression="zstd")
+            
+        self._df = pd.read_pickle(save_path, compression="zstd")
+        # UnpicklingError: invalid load key, '\xb5'.
+        print("Using ready-made DataFrame")
+            
     
     def group(self, sample_n:int) -> pd.DataFrame:
         df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
@@ -117,7 +117,7 @@ class WESAD:
         """
         if len(feature) < window_size:
             raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
-        roll_obj = feature.rolling(window=window_size, step=shift)# too small size may cause function to blow up to O(n^2) instead of O(n)
+        roll_obj = feature.rolling(window=window_size, step=shift) # NOTE too small size may cause function to blow up to O(n^2) instead of O(n)
         rows = []
         for row in roll_obj:
             if len(row) < window_size:
@@ -131,7 +131,7 @@ class WESAD:
     def feature_extraction(self, sample_n:int=14000, window_size:int=7000,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
-        # TODOS:
+        # TODO:
         # 1. (Optional) change lambdas to partials
         # 2. add logic to separate different label/subject, preferably outside of this function
         # 3. (Optional) add multithreading, preferably outside of this function
@@ -169,6 +169,15 @@ class WESAD:
                 features[col_name] = col
         return features
     
+    def separate_and_feature_extract(self, sample_n:int=14000, window_size:int=7000,
+                           cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
+                           ) -> pd.DataFrame:
+        # TODO: make function
+        # step 1: separate df into groups
+        # step 2: feed each group into feature extract
+        # step 3: recombine
+        pass
+
     ## ENDOF Feature Extraction
 ###########################################################################################################################################
 
