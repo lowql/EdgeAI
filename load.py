@@ -95,8 +95,8 @@ class WESAD:
 
     def rolling_window(self, feature:pd.Series, shift:int=700, window_size:int=10) -> pd.DataFrame:
         """ 
-        Note: this rolling window creates 2-Dimension data, which may be too big,
-              In the future this should be changed to apply function instead of creating list.
+        Note: this rolling window creates 2-Dimension data, which are raw data,
+              it is recommended to use rolling_window_apply instead.
         """
         if len(feature) < window_size:
             raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
@@ -111,10 +111,9 @@ class WESAD:
 
     def rolling_window_apply(self, feature:pd.Series, function_pipeline:feat.FunctionPipeline, window_size:int, shift:int=700) -> Iterator[pd.Series]:
         """ 
-        Same as rolling window but ,
         intuitively the space taken will be O(n), >haven't confirmed<
         runtime will still be O(N * length * applied_func_complexity),
-        need to manually implementation for functions that can be optimized to O(N * applied_func_complexity)
+        (Optional) need to manually implementation for functions that can be optimized to O(N * applied_func_complexity)
         """
         if len(feature) < window_size:
             raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
@@ -143,7 +142,7 @@ class WESAD:
             col_signal = signal[key]
 
             # get processor
-            if key == 'subject': # maybe drop, 'subject' column in the future >>CHECKME<<
+            if key == 'subject':
                 decorator =  feat.FunctionPipeline([lambda x, kwargs: x.value_counts().idxmax()], [dict()])
                 col_names = [key]
             elif key == 'label':
@@ -169,66 +168,8 @@ class WESAD:
                 features[col_name] = col
         return features
     
-    # def multi_T_feature_extraction(self, sample_n:int=14000, window_size:int=7000,
-    #                                cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'],
-    #                                limit:int=0, work_n:int=1) -> pd.DataFrame:
-    #     signal = self.group(sample_n=sample_n).loc[:,cols]
-    #     rolling_windows = {key: self.rolling_window(signal[key],window_size=window_size) for key in cols}
-        
-    #     df = pd.DataFrame(rolling_windows)
-    #     print(f"shape of df before filter {df.shape[0]}")
-    #     df = df[df.apply(lambda row: len(set(row['label'])) == 1 and len(set(row['subject'])) == 1, axis=1)]
-    #     print(f"shape of df after filter {df.shape[0]}")
-    #     rolling_windows = df.to_dict(orient='list')
-        
-    #     max_len_of_signal = len(rolling_windows['subject'])
-    #     signal_length = limit if limit > 0 else max_len_of_signal
-    #     print(f"signal length: {signal_length}/{max_len_of_signal}")
-        
-    #     process_window_func = partial(
-    #         self._process_window,
-    #         rolling_windows = rolling_windows,
-    #         cols = cols
-    #     ) 
-    #     features = []
-    #     print(f"multi thread use {work_n} works")
-    #     with ThreadPoolExecutor(max_workers=work_n) as exec:
-    #         features = list(exec.map(process_window_func,range(signal_length)))
-    #     feat_df = pd.DataFrame(features)
-    #     return feat_df
-    
-    # def _process_window(self,i,rolling_windows,cols):
-    #     col_feature = {}  # 先存這一組 window 的特徵  
-    #     for key in cols:  
-    #         time_signal = rolling_windows[key][i]  # 取出對應索引的窗口資料  
-    #         decorator = feat.SignalDecorator(time_signal)  
-    #         try:
-    #             if key == 'label':
-    #                 try:
-    #                     col_feature['label'] = Counter(time_signal).most_common(1)[0][0]
-    #                 except Exception as e:
-    #                     print(time_signal)
-    #             elif key == 'subject':
-    #                 col_feature['subject'] = Counter(time_signal).most_common(1)[0][0]
-    #             elif key == 'ECG':  
-    #                 decorator.add_processor(feat.ButterBandpass(), lowcut=10, highcut=30, fs=70)  
-    #                 decorator.add_processor(feat.HRVFrequency(), sampling_rate=700)  
-    #                 processed_signal, results = decorator.apply()  
-    #                 col_feature.update({f"ECG_{feat}": results['hrv_features'][feat] for feat in ['ULF', 'LF', 'HF', 'UHF']})   
-    #                 print('.',end='')
-    #             else:  
-    #                 decorator.add_processor(feat.StdProcessor())  
-    #                 processed_signal, results = decorator.apply()  
-    #                 col_feature[f"std_{key}"] = processed_signal  
-                    
-    #                 decorator.add_processor(feat.MeanProcessor())  
-    #                 processed_signal, results = decorator.apply()  
-    #                 col_feature[f"mean_{key}"] = processed_signal      
-    #         except ValueError as e:
-    #             print(f"v{i}",end='')
-    #     return col_feature
-    
     ## ENDOF Feature Extraction
+###########################################################################################################################################
 
 class Evaluate:
     plt.figure(figsize=(10, 6))
