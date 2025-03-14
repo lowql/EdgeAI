@@ -134,7 +134,7 @@ class WESAD:
         for _, row in rows.iterrows():
             yield row
     
-    def feature_extraction(self, data = pd.DataFrame, sample_n:int=14000, window_size:int=7000,
+    def feature_extraction(self, data:pd.DataFrame, sample_n:int=14000, window_size:int=7000,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
         # TODO:
