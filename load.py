@@ -88,6 +88,11 @@ class WESAD:
         df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
         return df
     
+    def group2(self, data:pd.DataFrame, sample_n:int) -> pd.DataFrame:
+        df = data[(data['label']==1) | (data['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
+        df = df.groupby(['label','subject']).apply(lambda x:x.sample(n=sample_n)).reset_index(drop=True) #Sample 40 from label==1 & label==2
+        return df
+    
     ## ENDOF Data Loading
 ###########################################################################################################################################
 
@@ -136,7 +141,7 @@ class WESAD:
         # 2. add logic to separate different label/subject, preferably outside of this function
         # 3. (Optional) add multithreading, preferably outside of this function
         # 4. (Optional) make better cols initialization
-        signal = self.group(sample_n=sample_n).loc[:,cols]
+        signal = self.group2(self._df, sample_n=sample_n).loc[:,cols]
         features = pd.DataFrame()
         for key in cols:
             # get signal
