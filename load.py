@@ -68,12 +68,19 @@ class WESAD:
     async def _build_df(self) -> None:
         """Build DataFrame by loading data from all subjects"""
         # Use asyncio.gather to load data concurrently
-        tasks = [self._load_subject_data(subject) for subject in self._subjects]
-        subject_dataframes = await asyncio.gather(*tasks)
-        
-        # Concatenate all subject dataframes
-        self._df = pd.concat(subject_dataframes, ignore_index=True)
-        print("Finished building DataFrame")
+        try:
+            self._df = pd.read_pickle("_InitDataFrame.pkl",compression="zstd")
+            # UnpicklingError: invalid load key, '\xb5'.
+            print("Using ready-made DataFrame")
+        except FileNotFoundError as e:
+            print(e)
+            tasks = [self._load_subject_data(subject) for subject in self._subjects]
+            subject_dataframes = await asyncio.gather(*tasks)
+            # Concatenate all subject dataframes
+            self._df = pd.concat(subject_dataframes, ignore_index=True)
+            # care about compression rate and read speed (storage optimization + fast read):
+            print("Finished building DataFrame")
+            self._df.to_pickle("_InitDataFrame.pkl", protocol=5, compression="zstd")
     
     def group(self, sample_n:int) -> pd.DataFrame:
         df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
@@ -137,15 +144,16 @@ class WESAD:
 
             # get processor
             if key == 'subject': # maybe drop, 'subject' column in the future >>CHECKME<<
-                continue
-            if key == 'label':
+                decorator =  feat.FunctionPipeline([lambda x, kwargs: x.value_counts().idxmax()], [dict()])
+                col_names = [key]
+            elif key == 'label':
                 # continue # debug purposes >>DEBUG<<
-                decorator = feat.FunctionPipeline([lambda x, kwargs: Counter(x).most_common(1)[0][0]], [dict()])
+                decorator = feat.FunctionPipeline([lambda x, kwargs: x.value_counts().idxmax()], [dict()])
                 col_names = [key]
             elif key == 'ECG':  
                 decorator = feat.FunctionPipeline([
-                    lambda x, kwargs: feat.ButterBandpass.butter_bandpass_filter(x, **kwargs),
-                    lambda x, kwargs: feat.extract_hrv_frequency_features(x, **kwargs)
+                    lambda x, kwargs: feat.ButterBandpass()(x, **kwargs),
+                    lambda x, kwargs: feat.HRVFrequency()(x, **kwargs)
                 ],
                 [
                     dict(lowcut=10, highcut=30, fs=70),

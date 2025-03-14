@@ -1,3 +1,5 @@
 __pycache__/
 WESAD/
 lab/
+*.csv
+*.pkl

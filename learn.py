@@ -43,7 +43,7 @@ class NormalEvaluate(Evaluate):
         )
         print(report)
 class LOSOEvaluate(Evaluate):
-    def __init__(self, learn): 
+    def __init__(self, learn:Learn): 
         self.logo = LeaveOneGroupOut()
         self.subjects = learn.subjects
         self.feature = learn.X

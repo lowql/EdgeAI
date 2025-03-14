@@ -4,20 +4,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class SignalProcessor:
-    def process(self,signal,**kwargs):
+    def __call__(self,signal,**kwargs):
         raise NotImplementedError
 
 class StdProcessor(SignalProcessor):
     def std(self,X,ddof=0):
         X = np.asarray(X)
         return np.std(X,ddof=ddof)
-    def process(self, signal, **kwargs):
+    def __call__(self, signal, **kwargs):
         return self.std(signal,**kwargs)
 class MeanProcessor(SignalProcessor):
     def mean(self,X,axis=0):
         X = np.asarray(X)
         return np.mean(X,axis=axis)
-    def process(self, signal, **kwargs):
+    def __call__(self, signal, **kwargs):
         return self.mean(signal, **kwargs)
 class MinMaxProcessor(SignalProcessor):
     def min_max(self,x,axis = None):
@@ -25,7 +25,7 @@ class MinMaxProcessor(SignalProcessor):
         min = x.min(axis=axis,keepdims=True)
         max = x.max(axis=axis,keepdims=True)
         return (x-min)/(max-min)
-    def process(self, signal, **kwargs):
+    def __call__(self, signal, **kwargs):
         return self.min_max(signal,**kwargs)
 class FFTProcessor(SignalProcessor):
     def time_to_freq(self,time_signal,time_step=0.01):
@@ -39,7 +39,7 @@ class FFTProcessor(SignalProcessor):
         freqs_half = freqs[:idx_half]
         magnitude_half = np.abs(freq_signal[:idx_half])
         return {"freqs":freqs_half,"magnitude":magnitude_half}
-    def process(self, signal, **kwargs):
+    def __call__(self, signal, **kwargs):
         return self.time_to_freq(signal,**kwargs)
 class ButterBandpass(SignalProcessor):
     @classmethod
@@ -66,7 +66,7 @@ class ButterBandpass(SignalProcessor):
         b, a = butter(order, [low, high], btype='band')
         return filtfilt(b, a, data)
     
-    def process(self, signal, **kwargs):
+    def __call__(self, signal, **kwargs):
         return self.butter_bandpass_filter(signal,**kwargs)
     def signal_frequency_band_energies(self,sampled_signal, frequency_bands, sampling_frequency, order=5):
         energies = []
@@ -82,12 +82,6 @@ class HRVFrequency(SignalProcessor):
 
     def __init__(self):
         self.bandpass_filter = ButterBandpass().butter_bandpass_filter
-        self.freq_bands = {
-            'ULF': (0.01, 0.04),
-            'LF': (0.04, 0.15),
-            'HF': (0.15, 0.4),
-            'UHF': (0.4, 1.0)
-        }
         super().__init__()
     @classmethod
     def extract_hrv_frequency_features(self, ecg_signal, sampling_rate=250):
@@ -106,7 +100,12 @@ class HRVFrequency(SignalProcessor):
         dict
             Dictionary containing ULF, VLF, LF, HF, and UHF energy components
         """
-        
+        freq_bands = {
+            'ULF': (0.01, 0.04),
+            'LF': (0.04, 0.15),
+            'HF': (0.15, 0.4),
+            'UHF': (0.4, 1.0)
+        }
         # Step 1: ECG processing - R-peak detection
         # ecg_filtered = self.bandpass_filter(ecg_signal, lowcut=5, highcut=15, fs=sampling_rate)
         ecg_filtered = ecg_signal
@@ -156,7 +155,7 @@ class HRVFrequency(SignalProcessor):
         # ULF, LF, HF, UHF => [[0.01, 0.04], [0.04, 0.15], [0.15, 0.4], [0.4, 1.0]]
         # Calculate energy in each band
         energies = {}
-        for band_name, (low_freq, high_freq) in self.freq_bands.items():
+        for band_name, (low_freq, high_freq) in freq_bands.items():
             # Find indices corresponding to the frequency band
             indices = np.logical_and(freqs >= low_freq, freqs <= high_freq)
             # Calculate energy (area under the PSD curve) in the band
@@ -179,9 +178,10 @@ class HRVFrequency(SignalProcessor):
         # Add LF/HF ratio
         energies['LF_HF_ratio'] = energies['LF'] / energies['HF'] if energies['HF'] > 0 else np.nan
         
-        return {"hrv_features":energies,"freq":freqs,"psd":psd}
+        # return {"hrv_features":energies,"freq":freqs,"psd":psd}
+        return [energies[feat] for feat in ['ULF', 'LF', 'HF', 'UHF']]
 
-    def process(self, signal, **kwargs):
+    def __call__(self, signal, **kwargs):
         return self.extract_hrv_frequency_features(signal,**kwargs)
     
 
