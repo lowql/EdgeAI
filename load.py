@@ -125,8 +125,8 @@ class WESAD:
             result = function_pipeline.apply(row)
             rows.append(result)
         rows = pd.DataFrame(rows).T
-        for row in rows.iterrows():
-            yield row[1]
+        for _, row in rows.iterrows():
+            yield row
     
     def feature_extraction(self, sample_n:int=14000, window_size:int=7000,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
