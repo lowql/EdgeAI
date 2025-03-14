@@ -32,13 +32,15 @@ class WESAD:
     def __init__(self, path_to_folder:str="WESAD", **kwargs) -> None:
         self._df = pd.DataFrame()
         self._label = None
+
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
         subject_count = kwargs.get('subject_count', len(self._subjects)) # NOTE for developing, >>REMOVE<< later
         self._subjects = self._subjects[:subject_count] # NOTE for developing, >>REMOVE<< later
+
         max_workers = kwargs.get('max_workers', None) # for people with weak computer like me :(
         self._executor = ProcessPoolExecutor(max_workers=max_workers)
-        asyncio.run(self._build_df())  
-        self.group_df = self.group(100)
+
+        asyncio.run(self._build_df())
 
     ## Data loading
     async def _load_subject_data(self, subject_str:str) -> pd.DataFrame:
@@ -81,7 +83,6 @@ class WESAD:
         self._df = pd.read_pickle(save_path, compression="zstd")
         # UnpicklingError: invalid load key, '\xb5'.
         print("Using ready-made DataFrame")
-            
     
     def group(self, sample_n:int) -> pd.DataFrame:
         df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
@@ -133,7 +134,7 @@ class WESAD:
         for _, row in rows.iterrows():
             yield row
     
-    def feature_extraction(self, sample_n:int=14000, window_size:int=7000,
+    def feature_extraction(self, data = pd.DataFrame, sample_n:int=14000, window_size:int=7000,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
         # TODO:
@@ -141,7 +142,7 @@ class WESAD:
         # 2. add logic to separate different label/subject, preferably outside of this function
         # 3. (Optional) add multithreading, preferably outside of this function
         # 4. (Optional) make better cols initialization
-        signal = self.group2(self._df, sample_n=sample_n).loc[:,cols]
+        signal = self.group2(data, sample_n=sample_n).loc[:,cols] # NOTE: why need loc[:, cols], in a perfect world cols shouldn't be here
         features = pd.DataFrame()
         for key in cols:
             # get signal
@@ -181,7 +182,18 @@ class WESAD:
         # step 1: separate df into groups
         # step 2: feed each group into feature extract
         # step 3: recombine
-        pass
+        df = self.group2(self._df, sample_n=sample_n).loc[:,cols]
+        df_group = df.groupby(['label','subject'])
+        
+        extracted_features = []
+        for _, g in df_group:
+            extracted_feature = self.feature_extraction()
+            extracted_features.append(extracted_feature)
+        
+        features = pd.concat(extracted_features, ignore_index=True)
+
+        return features
+
 
     ## ENDOF Feature Extraction
 ###########################################################################################################################################
