@@ -110,7 +110,6 @@ class HRVFrequency(SignalProcessor):
         # Step 1: ECG processing - R-peak detection
         # ecg_filtered = self.bandpass_filter(ecg_signal, lowcut=5, highcut=15, fs=sampling_rate)
         ecg_filtered = ecg_signal
-        print("LENGTH = ", len(ecg_filtered))
         rpeaks, _ = find_peaks(ecg_filtered, height=0.5*np.max(ecg_filtered), distance=0.5*sampling_rate)
         
         # Step 2: Calculate RR intervals in seconds
@@ -224,7 +223,6 @@ class FunctionPipeline:
     def apply(self, data: List) -> List[float]:
         result = data
         for func, args in self.processors:
-            print(func, args)
             result = func(data, args)
         return result
 
@@ -289,7 +287,6 @@ def extract_hrv_frequency_features(ecg_signal, sampling_rate=250):
         # Step 1: ECG processing - R-peak detection
         # ecg_filtered = self.bandpass_filter(ecg_signal, lowcut=5, highcut=15, fs=sampling_rate)
         ecg_filtered = ecg_signal
-        print("LENGTH = ", len(ecg_filtered))
         rpeaks, _ = find_peaks(ecg_filtered, height=0.5*np.max(ecg_filtered), distance=0.5*sampling_rate)
         # Step 2: Calculate RR intervals in seconds
         rr_intervals = np.diff(rpeaks) / sampling_rate
@@ -358,4 +355,5 @@ def extract_hrv_frequency_features(ecg_signal, sampling_rate=250):
         # Add LF/HF ratio
         energies['LF_HF_ratio'] = energies['LF'] / energies['HF'] if energies['HF'] > 0 else np.nan
         
-        return {"hrv_features":energies,"freq":freqs,"psd":psd}
+        # return {"hrv_features":energies,"freq":freqs,"psd":psd}
+        return [energies[feat] for feat in ['ULF', 'LF', 'HF', 'UHF']]
