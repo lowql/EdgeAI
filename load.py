@@ -27,7 +27,7 @@ def pickle_load_sync(pickle_path:str) -> str:
         data = pickle.load(f, encoding="bytes")
     print(f"End pickle: {pickle_path}")
     return data
-        
+
 class WESAD:
     def __init__(self, path_to_folder:str="WESAD", **kwargs) -> None:
         self._df = pd.DataFrame()
@@ -62,7 +62,7 @@ class WESAD:
             "EDA": data[b'EDA'][:,0], 
             "Resp": data[b'Resp'][:,0], 
             "Temp": data[b'Temp'][:,0],  
-        }     
+        }
         return pd.DataFrame(data)
     
     async def _build_df(self) -> None:
@@ -77,7 +77,7 @@ class WESAD:
             # look-out for compression rate and read speed (storage optimization + fast read):
             print("Finished building DataFrame")
             self._df.to_pickle(save_path, protocol=5, compression="zstd")
-            
+
         self._df = pd.read_pickle(save_path, compression="zstd")
         # UnpicklingError: invalid load key, '\xb5'.
         print("Using ready-made DataFrame")
@@ -93,7 +93,7 @@ class WESAD:
 
     ## Feature extraction
 
-    def rolling_window(self, feature:pd.Series, shift:int=700, window_size:int=10) -> pd.DataFrame:
+    def rolling_window(self, feature:pd.Series, window_size:int, shift:int=700) -> pd.DataFrame:
         """ 
         Note: this rolling window creates 2-Dimension data, which are raw data,
               it is recommended to use rolling_window_apply instead.
