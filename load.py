@@ -29,21 +29,19 @@ def pickle_load_sync(pickle_path:str) -> str:
     return data
         
 class WESAD:
-    def __init__(self, path_to_folder:str="WESAD", **kwargs):
+    def __init__(self, path_to_folder:str="WESAD", **kwargs) -> None:
         self._df = pd.DataFrame()
         self._label = None
         self._subjects = [entry.name for entry in os.scandir(path_to_folder) if entry.is_dir()]
-        # self._subjects = self._subjects[:2] # for developing, >>REMOVE<< later
-        if 'max_workers' in kwargs:
-            max_workers = kwargs['max_workers']
-        else:
-            max_workers = None
+        subject_count = kwargs.get('subject_count', len(self._subjects)) # for developing, >>REMOVE<< later
+        self._subjects = self._subjects[:subject_count] # for developing, >>REMOVE<< later
+        max_workers = kwargs.get('max_workers', None)
         self._executor = ProcessPoolExecutor(max_workers=max_workers)
         asyncio.run(self._build_df())  
         self.group_df = self.group()
 
     ## Data loading
-    async def _load_subject_data(self, subject_str:str):
+    async def _load_subject_data(self, subject_str:str) -> pd.DataFrame:
         """Load data for a specific subject"""
         full_path = os.path.join(pickle_path(str(subject_str)), f"{subject_str}.pkl")
         loop = asyncio.get_running_loop()
@@ -84,7 +82,7 @@ class WESAD:
         return df
     
     ## ENDOF Data Loading
-    ###########################################################################################################################################
+###########################################################################################################################################
 
     ## Feature extraction
 
@@ -104,7 +102,7 @@ class WESAD:
         result = pd.concat(rows, ignore_index=True)
         return result
 
-    def rolling_window_apply(self, feature:pd.Series, function_pipeline:feat.FunctionPipeline, shift:int=700, window_size:int=10, ) -> Iterator[pd.Series]:
+    def rolling_window_apply(self, feature:pd.Series, function_pipeline:feat.FunctionPipeline, window_size:int, shift:int=700) -> Iterator[pd.Series]:
         """ 
         Same as rolling window but ,
         intuitively the space taken will be O(n), >haven't confirmed<
@@ -129,8 +127,8 @@ class WESAD:
                            signal_length_limit:int=0) -> pd.DataFrame:
         signal = self.group(sample_n=sample_n).loc[:,cols]
         # features = []
-        signal_length = signal_length_limit if signal_length_limit > 0 else len(self.rolling_window(signal['subject'], window_size=window_size))
-        print(f"signal length: {signal_length}")
+        # signal_length = signal_length_limit if signal_length_limit > 0 else len(self.rolling_window(signal['subject'], window_size=window_size))
+        # print(f"signal length: {signal_length}")
         
         # >>IMPORTANT<< len(self.rolling_window(signal['subject'], window_size=window_size)) uses O(N*window_size) time, please rework
         # >>IMPORTANT<< row by row application, not intuitive + hard to optimize, reworking . . .
@@ -164,16 +162,18 @@ class WESAD:
         features = pd.DataFrame()
         for key in cols:
             # get signal
-            signal = signal[key]
+            col_signal = signal[key]
 
             # get processor
+            if key == 'subject':
+                continue
             if key == 'label':
-                decorator = feat.FunctionPipeline([lambda x: Counter(x).most_common(1)[0][0]], [dict()])
+                decorator = feat.FunctionPipeline([lambda x, kwargs: Counter(x).most_common(1)[0][0]], [dict()])
                 col_names = [key]
             elif key == 'ECG':  
                 decorator = feat.FunctionPipeline([
-                    feat.ButterBandpass.process,
-                    feat.HRVFrequency.process
+                    lambda x, kwargs: feat.ButterBandpass.butter_bandpass_filter(x, **kwargs),
+                    lambda x, kwargs: feat.extract_hrv_frequency_features(x, **kwargs)
                 ],
                 [
                     dict(lowcut=10, highcut=30, fs=70),
@@ -181,11 +181,12 @@ class WESAD:
                 ])
                 col_names = [f"ECG_{feat}" for feat in ['ULF', 'LF', 'HF', 'UHF']]
             else:
-                decorator = feat.FunctionPipeline([lambda x: (np.std(x), np.mean(x))],[dict()])
+                decorator = feat.FunctionPipeline([lambda x, kwargs: (np.std(x), np.mean(x))],[dict()])
                 col_names = [f"std_{key}", f"mean_{key}"]
 
             # apply processor
-            for col, col_name in zip(self.rolling_window_apply(signal[key], decorator), col_names):
+            print("key = ",key)
+            for col, col_name in zip(self.rolling_window_apply(col_signal, decorator, window_size=window_size), col_names):
                 features[col_name] = col
         
         return features
@@ -248,7 +249,7 @@ class WESAD:
         return col_feature
     
     ## ENDOF Feature Extraction
-    
+
 class Evaluate:
     plt.figure(figsize=(10, 6))
     @classmethod

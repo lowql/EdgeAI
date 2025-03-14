@@ -42,6 +42,7 @@ class FFTProcessor(SignalProcessor):
     def process(self, signal, **kwargs):
         return self.time_to_freq(signal,**kwargs)
 class ButterBandpass(SignalProcessor):
+    @classmethod
     def butter_bandpass_filter(self,data, lowcut, highcut, fs, order=5):
         """
         # from scipy.signal import butter, lfilter
@@ -78,6 +79,7 @@ class ButterBandpass(SignalProcessor):
         energy = np.sum(filtered_signal**2) 
         return energy
 class HRVFrequency(SignalProcessor):
+
     def __init__(self):
         self.bandpass_filter = ButterBandpass().butter_bandpass_filter
         self.freq_bands = {
@@ -87,7 +89,8 @@ class HRVFrequency(SignalProcessor):
             'UHF': (0.4, 1.0)
         }
         super().__init__()
-    def extract_hrv_frequency_features(self,ecg_signal, sampling_rate=250):
+    @classmethod
+    def extract_hrv_frequency_features(self, ecg_signal, sampling_rate=250):
         """
         Extract frequency domain HRV features from ECG signal
         
@@ -107,6 +110,7 @@ class HRVFrequency(SignalProcessor):
         # Step 1: ECG processing - R-peak detection
         # ecg_filtered = self.bandpass_filter(ecg_signal, lowcut=5, highcut=15, fs=sampling_rate)
         ecg_filtered = ecg_signal
+        print("LENGTH = ", len(ecg_filtered))
         rpeaks, _ = find_peaks(ecg_filtered, height=0.5*np.max(ecg_filtered), distance=0.5*sampling_rate)
         
         # Step 2: Calculate RR intervals in seconds
@@ -207,9 +211,9 @@ class SignalDecorator:
         self.processors = []
         return processed_signal, results
 
-from typing import List
+from typing import List, Callable
 class FunctionPipeline:
-    def __init__(self, process:List[function], kwargs:List[dict]) -> None:
+    def __init__(self, process:List[Callable], kwargs:List[dict]) -> None:
         if len(process) != len(kwargs):
             raise AssertionError
         self.processors = [(func, args) for func, args in zip(process, kwargs)]
@@ -220,6 +224,7 @@ class FunctionPipeline:
     def apply(self, data: List) -> List[float]:
         result = data
         for func, args in self.processors:
+            print(func, args)
             result = func(data, args)
         return result
 
@@ -257,3 +262,100 @@ class SignalVisualizer:
 
         plt.tight_layout()
         plt.show()
+
+freq_bands = {
+            'ULF': (0.01, 0.04),
+            'LF': (0.04, 0.15),
+            'HF': (0.15, 0.4),
+            'UHF': (0.4, 1.0)
+        }
+def extract_hrv_frequency_features(ecg_signal, sampling_rate=250):
+        """
+        Extract frequency domain HRV features from ECG signal
+        
+        Parameters:
+        -----------
+        ecg_signal : np.array
+            The raw ECG signal
+        sampling_rate : int
+            Sampling rate of the ECG signal in Hz
+            
+        Returns:
+        --------
+        dict
+            Dictionary containing ULF, VLF, LF, HF, and UHF energy components
+        """
+        
+        # Step 1: ECG processing - R-peak detection
+        # ecg_filtered = self.bandpass_filter(ecg_signal, lowcut=5, highcut=15, fs=sampling_rate)
+        ecg_filtered = ecg_signal
+        print("LENGTH = ", len(ecg_filtered))
+        rpeaks, _ = find_peaks(ecg_filtered, height=0.5*np.max(ecg_filtered), distance=0.5*sampling_rate)
+        # Step 2: Calculate RR intervals in seconds
+        rr_intervals = np.diff(rpeaks) / sampling_rate
+        
+        # Optional: Remove outliers (ectopic beats)
+        # rr_intervals = remove_outliers(rr_intervals)
+        
+        # Step 3: Interpolate to create evenly sampled signal
+        # Interpolation frequency (typically 4 Hz for HRV analysis)
+        fs_interp = 4.0
+        
+        # Create time array (cumulative sum of RR intervals)
+        time_rr = np.cumsum(rr_intervals)
+        time_rr = np.insert(time_rr, 0, 0)  # Insert 0 at beginning
+        
+        # Create evenly spaced time array for interpolation
+        time_interp = np.arange(0, time_rr[-1], 1/fs_interp)
+        
+        # Interpolate RR intervals
+        # print(f"RR intervals count: {len(rr_intervals)}, Time RR count: {len(time_rr)}")
+        if len(rr_intervals) < 4:
+            raise ValueError("Too few RR intervals for interpolation. Need at least 4.")
+        if len(set(time_rr[:-1])) != len(time_rr[:-1]):
+            raise ValueError("Duplicate time points found in time_rr.")
+
+        tck = interpolate.splrep(time_rr[:-1], rr_intervals, s=0)
+        rr_interpolated = interpolate.splev(time_interp, tck, der=0)
+        
+        # Step 4: Detrend the interpolated RR intervals
+        # 移除數據的線性趨勢線
+        rr_detrended = detrend(rr_interpolated)
+        
+        # Step 5: Apply windowing (e.g., Hann window)
+        window = windows.hann(len(rr_detrended))
+        rr_windowed = rr_detrended * window
+        
+        # Step 6: Compute power spectral density using Welch's method
+        # Using Welch's method for better frequency resolution
+        freqs, psd = welch(rr_windowed, fs=fs_interp, nperseg=len(rr_windowed)//2, 
+                                scaling='density', detrend=False)
+        
+        # Step 7: Calculate energy in frequency bands
+        # ULF, LF, HF, UHF => [[0.01, 0.04], [0.04, 0.15], [0.15, 0.4], [0.4, 1.0]]
+        # Calculate energy in each band
+        energies = {}
+        for band_name, (low_freq, high_freq) in freq_bands.items():
+            # Find indices corresponding to the frequency band
+            indices = np.logical_and(freqs >= low_freq, freqs <= high_freq)
+            # Calculate energy (area under the PSD curve) in the band
+            band_energy = np.trapz(psd[indices], freqs[indices])
+            energies[band_name] = band_energy
+        
+        # Calculate total power
+        total_power = np.sum(list(energies.values()))
+        
+        # Calculate normalized powers and add to dictionary
+        # 修正：使用原始字典的副本進行迭代，避免在迭代時修改字典
+        
+    
+        for band in list(energies.keys()):
+            if total_power == 0 or np.isnan(total_power):
+                energies[f"{band}_normalized"] = np.nan  # 或者设为 0，取决于业务逻辑
+            else:
+                energies[f"{band}_normalized"] = energies[band] / total_power
+        
+        # Add LF/HF ratio
+        energies['LF_HF_ratio'] = energies['LF'] / energies['HF'] if energies['HF'] > 0 else np.nan
+        
+        return {"hrv_features":energies,"freq":freqs,"psd":psd}
