@@ -99,21 +99,22 @@ class WESAD:
 
     ## Feature extraction
 
-    def rolling_window(self, feature:pd.Series, window_size:int, shift:int=700) -> pd.DataFrame:
-        """ 
-        Note: this rolling window creates 2-Dimension data, which are raw data,
-              it is recommended to use rolling_window_apply instead.
-        """
-        if len(feature) < window_size:
-            raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
-        roll_obj = feature.rolling(window=window_size, step=shift)
-        rows = []
-        for row in roll_obj:
-            if len(row) < window_size:
-                continue
-            rows.append(row)
-        result = pd.concat(rows, ignore_index=True)
-        return result
+    # NOTE: Do NOT delete, until sure this won't be used
+    # def rolling_window(self, feature:pd.Series, window_size:int, shift:int=700) -> pd.DataFrame:
+    #     """ 
+    #     Note: this rolling window creates 2-Dimension data, which are raw data,
+    #           it is recommended to use rolling_window_apply instead.
+    #     """
+    #     if len(feature) < window_size:
+    #         raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
+    #     roll_obj = feature.rolling(window=window_size, step=shift)
+    #     rows = []
+    #     for row in roll_obj:
+    #         if len(row) < window_size:
+    #             continue
+    #         rows.append(row)
+    #     result = pd.concat(rows, ignore_index=True)
+    #     return result
 
     def rolling_window_apply(self, feature:pd.Series, function_pipeline:feat.FunctionPipeline, window_size:int, shift:int=700) -> Iterator[pd.Series]:
         """ 
@@ -134,7 +135,7 @@ class WESAD:
         for _, row in rows.iterrows():
             yield row
     
-    def feature_extraction(self, data:pd.DataFrame, sample_n:int=14000, window_size:int=7000,
+    def feature_extraction(self, data:pd.DataFrame, sample_n:int, window_size:int,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
         # TODO:
@@ -142,7 +143,7 @@ class WESAD:
         # 2. add logic to separate different label/subject, preferably outside of this function
         # 3. (Optional) add multithreading, preferably outside of this function
         # 4. (Optional) make better cols initialization
-        signal = self.group2(data, sample_n=sample_n).loc[:,cols] # NOTE: why need loc[:, cols], in a perfect world cols shouldn't be here
+        signal = data
         features = pd.DataFrame()
         for key in cols:
             # get signal
@@ -178,16 +179,12 @@ class WESAD:
     def separate_and_feature_extract(self, sample_n:int=14000, window_size:int=7000,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
-        # TODO: make function
-        # step 1: separate df into groups
-        # step 2: feed each group into feature extract
-        # step 3: recombine
-        df = self.group2(self._df, sample_n=sample_n).loc[:,cols]
+        df = self.group2(self._df, sample_n=sample_n).loc[:,cols] # NOTE: why need loc[:, cols], in a perfect world cols shouldn't be here
         df_group = df.groupby(['label','subject'])
         
         extracted_features = []
         for _, g in df_group:
-            extracted_feature = self.feature_extraction()
+            extracted_feature = self.feature_extraction(g, sample_n=sample_n, window_size=window_size)
             extracted_features.append(extracted_feature)
         
         features = pd.concat(extracted_features, ignore_index=True)
