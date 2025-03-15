@@ -3,6 +3,7 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_predict,cross_val_score
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score
+from sklearn.base import clone
 from load import WESAD
 import pandas as pd
 from abc import abstractmethod
@@ -76,15 +77,14 @@ class LOGOEvaluate(Evaluate):
         report = classification_report(self.labels, y_pred, digits=4)
         print(report)
 
-    def _custom(self) -> None: # NOTE WRONG IMPLEMENTATION
-        # same as _report but uses own implementation, also wrongly implemented...
-        # each iteration should be a BASE model not previously trained model
+    def _custom(self) -> None: 
         y_true, y_pred = [], []
         for train_idx, test_idx in self.logo.split(self.feature, self.labels, self.subjects):
             X_train, X_test = self.feature.iloc[train_idx], self.feature.iloc[test_idx]
             y_train, y_test = self.labels[train_idx], self.labels[test_idx]
             
-            model = self.learn._clf.fit(X_train, y_train)  # 重新训练模型
+            model = clone(self.learn._clf)
+            model = model.fit(X_train, y_train)  # 重新训练模型
             y_pred.extend(model.predict(X_test))  # 收集预测结果
             y_true.extend(y_test)  # 收集真实标签
 
