@@ -140,7 +140,6 @@ class WESAD:
                            ) -> pd.DataFrame:
         # TODO:
         # 1. (Optional) change lambdas to partials
-        # 2. add logic to separate different label/subject, preferably outside of this function
         # 3. (Optional) add multithreading, preferably outside of this function
         # 4. (Optional) make better cols initialization
         signal = data
