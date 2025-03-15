@@ -42,7 +42,7 @@ class NormalEvaluate(Evaluate):
             y_pred=self.learn.predict(self.learn.X_test)
         )
         print(report)
-class LOSOEvaluate(Evaluate):
+class LOGOEvaluate(Evaluate):
     def __init__(self, learn:Learn): 
         self.logo = LeaveOneGroupOut()
         self.subjects = learn.subjects
