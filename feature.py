@@ -148,6 +148,7 @@ class HRVFrequency(SignalProcessor):
         
         # Step 6: Compute power spectral density using Welch's method
         # Using Welch's method for better frequency resolution
+        # Welch 方法的底層仍然使用 FFT，但它透過 分段、加窗、重疊與平均 來改善單次 FFT 可能遇到的問題。
         freqs, psd = welch(rr_windowed, fs=fs_interp, nperseg=len(rr_windowed)//2, 
                                 scaling='density', detrend=False)
         
