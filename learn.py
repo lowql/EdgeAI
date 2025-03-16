@@ -68,8 +68,6 @@ class LOGOEvaluate(Evaluate):
 
     def _report(self) -> None:
         model = self.learn._clf
-        # model = DecisionTreeClassifier(random_state=0)
-        # shape of [subject,feature,labels] ((10,), (10, 8), (10,))
         y_pred = cross_val_predict(model, self.feature, self.labels, cv=self.logo, groups=self.subjects)
         acc = accuracy_score(self.labels, y_pred)
         print(f"model accuracy: {acc: .4f}")
