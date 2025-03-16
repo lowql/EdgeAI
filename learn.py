@@ -6,6 +6,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.base import clone
 from load import WESAD
 import pandas as pd
+import numpy as np
 from abc import abstractmethod
 
 class Learn:
@@ -68,6 +69,8 @@ class LOGOEvaluate(Evaluate):
 
     def _report(self) -> None:
         model = self.learn._clf
+        
+        self.feature = np.asarray(self.feature)
         y_pred = cross_val_predict(model, self.feature, self.labels, cv=self.logo, groups=self.subjects)
         acc = accuracy_score(self.labels, y_pred)
         print(f"model accuracy: {acc: .4f}")
