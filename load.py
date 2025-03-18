@@ -79,10 +79,10 @@ class WESAD:
             # look-out for compression rate and read speed (storage optimization + fast read):
             print("Finished building DataFrame")
             self._df.to_pickle(save_path, protocol=5, compression="zstd")
-
-        self._df = pd.read_pickle(save_path, compression="zstd")
-        # UnpicklingError: invalid load key, '\xb5'.
-        print("Using ready-made DataFrame")
+        else:
+            self._df = pd.read_pickle(save_path, compression="zstd")
+            # UnpicklingError: invalid load key, '\xb5'.
+            print("Using ready-made DataFrame")
     
     def group(self, sample_n:int) -> pd.DataFrame:
         df = self._df[(self._df['label']==1) | (self._df['label']==2)] #「label」:1=基線（baseline），2=壓力（stress）
@@ -120,7 +120,7 @@ class WESAD:
         """ 
         intuitively the space taken will be O(n), >haven't confirmed<
         runtime will still be O(N * length * applied_func_complexity),
-        (Optional) need to manually implementation for functions that can be optimized to O(N * applied_func_complexity)
+        (Optional) Need manual implementation, for functions that can be optimized to O(N * applied_func_complexity)
         """
         if len(feature) < window_size:
             raise IndexError(f"window size 大於 feature 的最大長度\n當前的feature長度為: {feature.size}")
@@ -175,7 +175,7 @@ class WESAD:
                 features[col_name] = col
         return features
     
-    def separate_and_feature_extract(self, sample_n:int=14000, window_size:int=7000,
+    def separate_and_feature_extract(self, sample_n:int, window_size:int=7000,
                            cols:List[str]=['label', 'subject', 'ACC_0', 'ACC_1', 'ACC_2', 'ECG', 'EMG', 'EDA', 'Resp', 'Temp'], 
                            ) -> pd.DataFrame:
         df = self.group2(self._df, sample_n=sample_n).loc[:,cols] # NOTE: why need loc[:, cols], in a perfect world cols shouldn't be here
